@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNotifications } from '../../context/NotificationContext';
 import { useInstitution } from '../../context/InstitutionContext';
+import { useWebsiteBuilder } from '../../context/WebsiteBuilderContext';
 import { ActiveTab } from '../../components/layout/Sidebar';
 import { AdminStatUpdateModal } from '../../components/admin/AdminStatUpdateModal';
 import { AdminProfileSettingsModal } from '../../components/admin/AdminProfileSettingsModal';
@@ -25,7 +26,10 @@ import {
   GraduationCap,
   Globe,
   ExternalLink,
-  Key
+  Key,
+  Database,
+  CloudUpload,
+  CloudDownload
 } from 'lucide-react';
 
 interface AdminCommandCenterProps {
@@ -49,10 +53,38 @@ export const AdminCommandCenter: React.FC<AdminCommandCenterProps> = ({
   onPreviewPublicSite
 }) => {
   const { playChime } = useNotifications();
-  const { stats, notices, classFiles, routines } = useInstitution();
+  const { stats, notices, classFiles, routines, cloudSyncStatus, forcePushAllToFirebase, forcePullAllFromFirebase } = useInstitution();
+  const { forceSyncToFirebase, forcePullFromFirebase, lastCloudSyncedAt } = useWebsiteBuilder();
   const [activeSubTab, setActiveSubTab] = useState<AdminSubTab>('overview');
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const handlePushAllToCloud = async () => {
+    setIsSyncing(true);
+    playChime('click');
+    try {
+      await Promise.all([
+        forcePushAllToFirebase(),
+        forceSyncToFirebase()
+      ]);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handlePullAllFromCloud = async () => {
+    setIsSyncing(true);
+    playChime('click');
+    try {
+      await Promise.all([
+        forcePullAllFromFirebase(),
+        forcePullFromFirebase()
+      ]);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   const subTabs = [
     { id: 'overview', label: 'Command Hub', icon: <Shield size={16} /> },
@@ -130,6 +162,56 @@ export const AdminCommandCenter: React.FC<AdminCommandCenterProps> = ({
           >
             <Users size={16} />
             <span>Manage Roster</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Universal Cloud Sync Banner */}
+      <div className="p-4 sm:p-5 rounded-3xl bg-slate-900/90 border border-indigo-500/30 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 shadow-xl">
+        <div className="flex items-start sm:items-center gap-3">
+          <div className="w-11 h-11 rounded-2xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0">
+            <Database size={22} />
+          </div>
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-bold text-white">Firebase Firestore Multi-Device Sync</span>
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                cloudSyncStatus === 'synced' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
+                cloudSyncStatus === 'syncing' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse' :
+                'bg-slate-800 text-slate-300 border border-slate-700'
+              }`}>
+                <span className={`w-2 h-2 rounded-full ${cloudSyncStatus === 'synced' ? 'bg-emerald-400 shadow-sm shadow-emerald-400' : 'bg-amber-400'}`} />
+                {cloudSyncStatus === 'synced' ? 'Live Cloud Connected' : cloudSyncStatus === 'syncing' ? 'Syncing to Firebase...' : 'Local Cache Active'}
+              </span>
+              {lastCloudSyncedAt && (
+                <span className="text-[11px] text-slate-500">Last sync: {lastCloudSyncedAt}</span>
+              )}
+            </div>
+            <p className="text-xs text-slate-400 mt-1">
+              Persistent Database: <span className="font-mono text-indigo-300 font-semibold">ai-studio-smartclasspro-b4a481cf-32ad-4958-b9e3-a2ca059abc2c</span> • Changes made on any device automatically sync across all devices via Firestore.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2.5 w-full lg:w-auto">
+          <button
+            onClick={handlePushAllToCloud}
+            disabled={isSyncing}
+            className="flex-1 lg:flex-none px-4 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30 transition cursor-pointer active:scale-95"
+            title="Upload this device's current website and class data to Firebase Firestore"
+          >
+            <CloudUpload size={16} className={isSyncing ? 'animate-bounce' : ''} />
+            <span>☁️ Push Device Data to Cloud</span>
+          </button>
+
+          <button
+            onClick={handlePullAllFromCloud}
+            disabled={isSyncing}
+            className="flex-1 lg:flex-none px-4 py-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 border border-slate-700 text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer active:scale-95"
+            title="Download the latest cloud database records to this device"
+          >
+            <CloudDownload size={16} className={isSyncing ? 'animate-spin' : ''} />
+            <span>📥 Pull Latest from Cloud</span>
           </button>
         </div>
       </div>

@@ -3,6 +3,8 @@ import { ChatConversation, ChatMessage, UserRole } from '../types';
 import { useAuth } from './AuthContext';
 import { useNotifications } from './NotificationContext';
 import { useInstitution } from './InstitutionContext';
+import { doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 interface SendMessageArgs {
   conversationId: string;
@@ -82,12 +84,82 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Real-time broadcast channel reference
   const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
 
+  const isRemoteMessagesRef = useRef(false);
+  const isRemoteConvsRef = useRef(false);
+  const isInitialCloudChatDone = useRef(false);
+
+  // Firestore real-time listener for multi-device live chat
+  useEffect(() => {
+    const unsubMsgs = onSnapshot(doc(db, 'chat_messages', 'all_messages'), (snap) => {
+      isInitialCloudChatDone.current = true;
+      if (snap.exists()) {
+        const data = snap.data();
+        if (Array.isArray(data?.messages)) {
+          isRemoteMessagesRef.current = true;
+          setMessages(data.messages);
+          localStorage.setItem('smartclass_chat_messages', JSON.stringify(data.messages));
+        }
+      }
+    }, () => {
+      isInitialCloudChatDone.current = true;
+    });
+
+    const unsubConvs = onSnapshot(doc(db, 'chat_conversations', 'all_conversations'), (snap) => {
+      isInitialCloudChatDone.current = true;
+      if (snap.exists()) {
+        const data = snap.data();
+        if (Array.isArray(data?.conversations)) {
+          isRemoteConvsRef.current = true;
+          setConversations(data.conversations);
+          localStorage.setItem('smartclass_chat_conversations', JSON.stringify(data.conversations));
+        }
+      }
+    }, () => {
+      isInitialCloudChatDone.current = true;
+    });
+
+    const fallback = setTimeout(() => {
+      isInitialCloudChatDone.current = true;
+    }, 3500);
+
+    return () => {
+      clearTimeout(fallback);
+      unsubMsgs();
+      unsubConvs();
+    };
+  }, []);
+
   useEffect(() => {
     localStorage.setItem('smartclass_chat_conversations', JSON.stringify(conversations));
+    if (!isInitialCloudChatDone.current) return;
+    if (isRemoteConvsRef.current) {
+      isRemoteConvsRef.current = false;
+      return;
+    }
+    const timer = setTimeout(() => {
+      setDoc(doc(db, 'chat_conversations', 'all_conversations'), {
+        conversations,
+        updatedAt: new Date().toISOString()
+      }, { merge: true }).catch(() => {});
+    }, 1000);
+    return () => clearTimeout(timer);
   }, [conversations]);
 
   useEffect(() => {
     localStorage.setItem('smartclass_chat_messages', JSON.stringify(messages));
+    if (!isInitialCloudChatDone.current) return;
+    if (isRemoteMessagesRef.current) {
+      isRemoteMessagesRef.current = false;
+      return;
+    }
+    const timer = setTimeout(() => {
+      setDoc(doc(db, 'chat_messages', 'all_messages'), {
+        messages,
+        message: 'Class Broadcast Channel',
+        updatedAt: new Date().toISOString()
+      }, { merge: true }).catch(() => {});
+    }, 1000);
+    return () => clearTimeout(timer);
   }, [messages]);
 
   // Set up BroadcastChannel for instant inter-tab/inter-window real-time updates

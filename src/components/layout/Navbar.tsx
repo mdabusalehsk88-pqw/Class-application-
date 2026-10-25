@@ -3,6 +3,8 @@ import { Logo } from '../common/Logo';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useNotifications } from '../../context/NotificationContext';
+import { useInstitution } from '../../context/InstitutionContext';
+import { useWebsiteBuilder } from '../../context/WebsiteBuilderContext';
 import { AdminProfileSettingsModal } from '../admin/AdminProfileSettingsModal';
 import {
   Bell,
@@ -39,6 +41,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   const { currentUser, logout, isAuthenticated } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { unreadCount, soundEnabled, toggleSound } = useNotifications();
+  const { cloudSyncStatus, forcePullAllFromFirebase } = useInstitution();
+  const { forcePullFromFirebase } = useWebsiteBuilder();
 
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -94,6 +98,24 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 <MessageSquare size={15} className="text-indigo-400" />
                 <span>Live Chat</span>
+              </button>
+            )}
+
+            {/* Cloud Sync Status Indicator */}
+            {isAuthenticated && (
+              <button
+                onClick={async () => {
+                  await Promise.all([forcePullAllFromFirebase(), forcePullFromFirebase()]);
+                }}
+                className={`hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition cursor-pointer ${
+                  cloudSyncStatus === 'synced'
+                    ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20'
+                    : 'bg-amber-500/10 text-amber-300 border-amber-500/30 hover:bg-amber-500/20 animate-pulse'
+                }`}
+                title="Click to pull latest cloud records from Firebase Firestore"
+              >
+                <span className={`w-2 h-2 rounded-full ${cloudSyncStatus === 'synced' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                <span className="text-[11px] font-bold">{cloudSyncStatus === 'synced' ? 'Cloud Synced' : 'Syncing Cloud...'}</span>
               </button>
             )}
 

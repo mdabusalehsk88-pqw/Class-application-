@@ -37,10 +37,7 @@ service cloud.firestore {
     // Public Website Builder Configuration (Public School/Union CMS Portal)
     match /website_config/{configId} {
       allow read: if isValidId(configId);
-      allow create, update: if isValidId(configId) && (
-        incoming().unionName is string &&
-        incoming().unionName.size() <= 200
-      );
+      allow create, update: if isValidId(configId);
       allow delete: if isAdmin();
     }
 
@@ -54,11 +51,11 @@ service cloud.firestore {
     // Class Members & Student Roster
     match /members/{memberId} {
       allow read: if isValidId(memberId);
-      allow create, update: if isValidId(memberId) && incoming().name is string;
+      allow create, update: if isValidId(memberId);
       allow delete: if isValidId(memberId);
     }
 
-    // Attendance Register (Date-wise)
+    // Attendance Register (Date-wise & aggregate)
     match /attendance/{dateId} {
       allow read: if isValidId(dateId);
       allow create, update: if isValidId(dateId);
@@ -68,58 +65,69 @@ service cloud.firestore {
     // Class Notices & Urgent Announcements
     match /notices/{noticeId} {
       allow read: if isValidId(noticeId);
-      allow create, update: if isValidId(noticeId) && incoming().title is string;
+      allow create, update: if isValidId(noticeId);
       allow delete: if isValidId(noticeId);
     }
 
     // Class Timetable Routine Slots
     match /routines/{routineId} {
       allow read: if isValidId(routineId);
-      allow create, update: if isValidId(routineId) && incoming().subject is string;
+      allow create, update: if isValidId(routineId);
       allow delete: if isValidId(routineId);
     }
 
     // Class Funds & Ledger Transactions
     match /transactions/{transactionId} {
       allow read: if isValidId(transactionId);
-      allow create, update: if isValidId(transactionId) && incoming().title is string;
+      allow create, update: if isValidId(transactionId);
       allow delete: if isValidId(transactionId);
     }
 
     // Student Dues & Fee Records
     match /dues/{dueId} {
       allow read: if isValidId(dueId);
-      allow create, update: if isValidId(dueId) && incoming().title is string;
+      allow create, update: if isValidId(dueId);
       allow delete: if isValidId(dueId);
     }
 
     // Class Files & Study Materials Metadata
     match /files/{fileId} {
       allow read: if isValidId(fileId);
-      allow create, update: if isValidId(fileId) && incoming().name is string;
+      allow create, update: if isValidId(fileId);
       allow delete: if isValidId(fileId);
     }
 
     // 17-Subject University Grade Cards
     match /grade_cards/{cardId} {
       allow read: if isValidId(cardId);
-      allow create, update: if isValidId(cardId) && incoming().studentName is string;
+      allow create, update: if isValidId(cardId);
       allow delete: if isValidId(cardId);
     }
 
     // Subject Marksheets & Ledgers
     match /marksheets/{sheetId} {
       allow read: if isValidId(sheetId);
-      allow create, update: if isValidId(sheetId) && incoming().subject is string;
+      allow create, update: if isValidId(sheetId);
       allow delete: if isValidId(sheetId);
     }
 
     // Real-Time Chat & Broadcast Messages
     match /chat_messages/{messageId} {
       allow read: if isValidId(messageId);
-      allow create: if isValidId(messageId) && incoming().message is string;
-      allow update: if isValidId(messageId);
+      allow create, update: if isValidId(messageId);
       allow delete: if isValidId(messageId);
+    }
+
+    // Chat Conversations & Groups
+    match /chat_conversations/{convId} {
+      allow read: if isValidId(convId);
+      allow create, update: if isValidId(convId);
+      allow delete: if isValidId(convId);
+    }
+
+    // Connection testing
+    match /test/{testId} {
+      allow read, write: if isValidId(testId);
     }
   }
 }

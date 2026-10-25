@@ -3,6 +3,8 @@ import { useNotifications } from '../../context/NotificationContext';
 import { useInstitution, ManagedClassMember } from '../../context/InstitutionContext';
 import { StudentMarkEntry, SubjectMarksheet } from '../../types';
 import { initialMockMarksheets } from '../../data/mockMarksheets';
+import { doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 import {
   GraduationCap,
   CheckCircle,
@@ -102,10 +104,73 @@ export const SuperAdminMarksPortal: React.FC = () => {
   const [selectedStudentForCard, setSelectedStudentForCard] = useState<string>('u_1');
   const [selectedGradeCardToView, setSelectedGradeCardToView] = useState<StudentGradeCard | null>(null);
 
-  // Sync gradeCards to localStorage and broadcast
+  const isRemoteGradeCardRef = useRef(false);
+  const isRemoteMarksheetRef = useRef(false);
+  const isInitialCloudCardsDone = useRef(false);
+  const isInitialCloudSheetsDone = useRef(false);
+
+  // Firestore real-time listener for grade cards and marksheets
+  useEffect(() => {
+    const unsubCards = onSnapshot(doc(db, 'grade_cards', 'all_cards'), (snap) => {
+      isInitialCloudCardsDone.current = true;
+      if (snap.exists()) {
+        const data = snap.data();
+        if (Array.isArray(data?.cards)) {
+          isRemoteGradeCardRef.current = true;
+          setGradeCards(data.cards);
+          localStorage.setItem('smartclass_grade_cards', JSON.stringify(data.cards));
+          window.dispatchEvent(new CustomEvent('al_uswah_grade_cards_updated'));
+        }
+      }
+    }, () => {
+      isInitialCloudCardsDone.current = true;
+    });
+
+    const unsubSheets = onSnapshot(doc(db, 'marksheets', 'all_marksheets'), (snap) => {
+      isInitialCloudSheetsDone.current = true;
+      if (snap.exists()) {
+        const data = snap.data();
+        if (Array.isArray(data?.marksheets)) {
+          isRemoteMarksheetRef.current = true;
+          setSavedMarksheets(data.marksheets);
+          localStorage.setItem('smartclass_marksheets', JSON.stringify(data.marksheets));
+        }
+      }
+    }, () => {
+      isInitialCloudSheetsDone.current = true;
+    });
+
+    const fallback = setTimeout(() => {
+      isInitialCloudCardsDone.current = true;
+      isInitialCloudSheetsDone.current = true;
+    }, 3500);
+
+    return () => {
+      clearTimeout(fallback);
+      unsubCards();
+      unsubSheets();
+    };
+  }, []);
+
+  // Sync gradeCards to localStorage, broadcast, and debounced Firestore sync
   useEffect(() => {
     localStorage.setItem('smartclass_grade_cards', JSON.stringify(gradeCards));
     window.dispatchEvent(new CustomEvent('al_uswah_grade_cards_updated'));
+
+    if (!isInitialCloudCardsDone.current) return;
+    if (isRemoteGradeCardRef.current) {
+      isRemoteGradeCardRef.current = false;
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setDoc(doc(db, 'grade_cards', 'all_cards'), {
+        cards: gradeCards,
+        updatedAt: new Date().toISOString()
+      }, { merge: true }).catch(() => {});
+    }, 1500);
+
+    return () => clearTimeout(timer);
   }, [gradeCards]);
 
   // Exam Configuration
@@ -147,9 +212,24 @@ export const SuperAdminMarksPortal: React.FC = () => {
   // Input refs for automatic enter-to-next-row navigation
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
-  // Save to localStorage whenever savedMarksheets changes
+  // Save to localStorage and debounced Firestore sync
   useEffect(() => {
     localStorage.setItem('smartclass_marksheets', JSON.stringify(savedMarksheets));
+
+    if (!isInitialCloudSheetsDone.current) return;
+    if (isRemoteMarksheetRef.current) {
+      isRemoteMarksheetRef.current = false;
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setDoc(doc(db, 'marksheets', 'all_marksheets'), {
+        marksheets: savedMarksheets,
+        updatedAt: new Date().toISOString()
+      }, { merge: true }).catch(() => {});
+    }, 1500);
+
+    return () => clearTimeout(timer);
   }, [savedMarksheets]);
 
   // Synchronize studentsList into marksMap whenever studentsList changes or subject/term changes

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { useNotifications } from './NotificationContext';
-import { doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, getDocFromServer } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 
 export interface ExecutiveLeaderItem {
@@ -306,6 +306,7 @@ interface WebsiteBuilderContextType {
   cloudSyncStatus: 'synced' | 'syncing' | 'offline' | 'error';
   lastCloudSyncedAt: string | null;
   forceSyncToFirebase: () => Promise<void>;
+  forcePullFromFirebase: () => Promise<void>;
 }
 
 const STORAGE_KEY = 'smartclass_public_website_config_v1';
@@ -331,12 +332,12 @@ export const WebsiteBuilderProvider: React.FC<{ children: React.ReactNode }> = (
 
   const [cloudSyncStatus, setCloudSyncStatus] = useState<'synced' | 'syncing' | 'offline' | 'error'>('synced');
   const [lastCloudSyncedAt, setLastCloudSyncedAt] = useState<string | null>(null);
+  const isInitialCloudLoadComplete = useRef(false);
   const isRemoteUpdateRef = useRef(false);
 
   // Sync to Cloud Firestore Helper
   const syncToFirestore = async (configToSave: PublicWebsiteConfig) => {
     setCloudSyncStatus('syncing');
-    const path = `website_config/${FIRESTORE_CONFIG_DOC}`;
     try {
       await setDoc(doc(db, 'website_config', FIRESTORE_CONFIG_DOC), {
         ...configToSave,
@@ -350,45 +351,62 @@ export const WebsiteBuilderProvider: React.FC<{ children: React.ReactNode }> = (
     }
   };
 
-  // 1. Real-time Cloud Firestore Listener
+  // 1. Real-time Cloud Firestore Listener (Cloud-First precedence)
   useEffect(() => {
-    const docPath = `website_config/${FIRESTORE_CONFIG_DOC}`;
+    const fallbackTimer = setTimeout(() => {
+      isInitialCloudLoadComplete.current = true;
+    }, 3500);
+
     const docRef = doc(db, 'website_config', FIRESTORE_CONFIG_DOC);
 
     const unsubscribe = onSnapshot(
       docRef,
       (snapshot) => {
+        isInitialCloudLoadComplete.current = true;
         if (snapshot.exists()) {
           const remoteData = snapshot.data() as Partial<PublicWebsiteConfig>;
           isRemoteUpdateRef.current = true;
-          setSiteConfig(prev => ({
-            ...defaultWebsiteConfig,
-            ...prev,
-            ...remoteData
-          }));
+          setSiteConfig(prev => {
+            const merged = {
+              ...defaultWebsiteConfig,
+              ...prev,
+              ...remoteData
+            };
+            try {
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+            } catch {
+              // ignore
+            }
+            return merged;
+          });
           setCloudSyncStatus('synced');
           setLastCloudSyncedAt(new Date().toLocaleTimeString());
-        } else {
-          // Document does not exist in Firestore yet: seed initial default config!
-          syncToFirestore(siteConfig);
         }
       },
       (error) => {
         console.warn('Firestore onSnapshot listener fallback to local:', error);
         setCloudSyncStatus('offline');
+        isInitialCloudLoadComplete.current = true;
       }
     );
 
-    return () => unsubscribe();
+    return () => {
+      clearTimeout(fallbackTimer);
+      unsubscribe();
+    };
   }, []);
 
-  // 2. Local storage persistence & debounced sync to Firestore
+  // 2. Local storage persistence & debounced sync to Firestore (guarded against overwriting cloud)
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(siteConfig));
       window.dispatchEvent(new CustomEvent('aluswah_website_updated'));
     } catch (e) {
       console.warn('Could not save website config to localStorage:', e);
+    }
+
+    if (!isInitialCloudLoadComplete.current) {
+      return;
     }
 
     if (isRemoteUpdateRef.current) {
@@ -398,7 +416,7 @@ export const WebsiteBuilderProvider: React.FC<{ children: React.ReactNode }> = (
 
     const timer = setTimeout(() => {
       syncToFirestore(siteConfig);
-    }, 700);
+    }, 1000);
 
     return () => clearTimeout(timer);
   }, [siteConfig]);
@@ -431,6 +449,46 @@ export const WebsiteBuilderProvider: React.FC<{ children: React.ReactNode }> = (
       message: 'All website data is securely stored in your Firebase Firestore database!',
       type: 'success'
     });
+  };
+
+  const forcePullFromFirebase = async () => {
+    setCloudSyncStatus('syncing');
+    playChime('click');
+    addNotification({
+      title: 'Pulling Website Config',
+      message: 'Fetching latest website structure from Firebase...',
+      type: 'info'
+    });
+    try {
+      const snap = await getDocFromServer(doc(db, 'website_config', FIRESTORE_CONFIG_DOC));
+      if (snap.exists()) {
+        const remoteData = snap.data() as Partial<PublicWebsiteConfig>;
+        isRemoteUpdateRef.current = true;
+        setSiteConfig(prev => {
+          const merged = { ...defaultWebsiteConfig, ...prev, ...remoteData };
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+          } catch {
+            // ignore
+          }
+          return merged;
+        });
+        isInitialCloudLoadComplete.current = true;
+        setCloudSyncStatus('synced');
+        setLastCloudSyncedAt(new Date().toLocaleTimeString());
+        playChime('success');
+        addNotification({
+          title: 'Website Config Loaded!',
+          message: 'Website data has been refreshed from Firebase Firestore.',
+          type: 'success'
+        });
+      } else {
+        setCloudSyncStatus('synced');
+      }
+    } catch (err) {
+      console.warn('Failed to pull website config from Firestore:', err);
+      setCloudSyncStatus('error');
+    }
   };
 
   const updateSiteConfig = (fields: Partial<PublicWebsiteConfig>) => {
@@ -737,7 +795,8 @@ export const WebsiteBuilderProvider: React.FC<{ children: React.ReactNode }> = (
         resetWebsiteConfig,
         cloudSyncStatus,
         lastCloudSyncedAt,
-        forceSyncToFirebase
+        forceSyncToFirebase,
+        forcePullFromFirebase
       }}
     >
       {children}

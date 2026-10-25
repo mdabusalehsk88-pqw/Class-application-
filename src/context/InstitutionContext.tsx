@@ -1,7 +1,7 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { mockClassStats, ClassStats, mockRoutines } from '../data/mockData';
 import { useNotifications } from './NotificationContext';
-import { doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, getDocFromServer } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import {
   UserRole,
@@ -119,6 +119,8 @@ interface ClassContextType {
   // Cloud Firestore Sync
   cloudSyncStatus: 'synced' | 'syncing' | 'offline' | 'error';
   saveAllClassDataToFirebase: () => Promise<void>;
+  forcePushAllToFirebase: () => Promise<void>;
+  forcePullAllFromFirebase: () => Promise<void>;
 }
 
 const defaultMembers: ManagedClassMember[] = [
@@ -149,28 +151,6 @@ const defaultInitialDues: StudentDueRecord[] = [];
 const defaultInitialFiles: ClassFileItem[] = [];
 
 const defaultAchievements: ClassAchievementItem[] = [];
-
-// Clean blank app initialization version (Pure Blank Application & Clean Attendance)
-const BLANK_APP_VERSION = 'smartclass_blank_v7_clean_attendance';
-if (typeof window !== 'undefined' && localStorage.getItem(BLANK_APP_VERSION) !== 'true') {
-  localStorage.removeItem('smartclass_ourclass_stats');
-  localStorage.removeItem('smartclass_ourclass_members');
-  localStorage.removeItem('smartclass_ourclass_notices');
-  localStorage.removeItem('smartclass_ourclass_routines');
-  localStorage.removeItem('smartclass_ourclass_transactions');
-  localStorage.removeItem('smartclass_ourclass_dues');
-  localStorage.removeItem('smartclass_ourclass_files');
-  localStorage.removeItem('smartclass_ourclass_attendance');
-  localStorage.removeItem('smartclass_grade_cards');
-  localStorage.removeItem('smartclass_marksheets');
-  localStorage.removeItem('smartclass_chat_messages');
-  localStorage.removeItem('smartclass_chat_conversations');
-  localStorage.removeItem('smartclass_notifications');
-  localStorage.removeItem('smartclass_student_data');
-  localStorage.removeItem('smartclass_student_id');
-  localStorage.removeItem('smartclass_role');
-  localStorage.setItem(BLANK_APP_VERSION, 'true');
-}
 
 const InstitutionContext = createContext<ClassContextType | undefined>(undefined);
 
@@ -315,68 +295,123 @@ export const InstitutionProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, [attendanceHistory]);
 
   const [cloudSyncStatus, setCloudSyncStatus] = useState<'synced' | 'syncing' | 'offline' | 'error'>('synced');
+  const isInitialCloudLoadComplete = useRef(false);
+  const isRemoteUpdatingRef = useRef(false);
 
-  // Real-time Firestore Listeners
+  // Real-time Firestore Listeners with Cloud-First precedence
   useEffect(() => {
+    // Safety fallback: allow saving after 3.5s even if database is fresh
+    const fallbackTimer = setTimeout(() => {
+      isInitialCloudLoadComplete.current = true;
+    }, 3500);
+
     const unsubStats = onSnapshot(doc(db, 'class_settings', 'current'), (snap) => {
+      isInitialCloudLoadComplete.current = true;
       if (snap.exists()) {
         const data = snap.data();
-        setStats(prev => ({ ...prev, ...data }));
+        isRemoteUpdatingRef.current = true;
+        setStats(prev => {
+          const merged = { ...prev, ...data };
+          localStorage.setItem('smartclass_ourclass_stats', JSON.stringify(merged));
+          return merged;
+        });
+        setCloudSyncStatus('synced');
       }
     }, () => setCloudSyncStatus('offline'));
 
     const unsubMembers = onSnapshot(doc(db, 'members', 'roster_list'), (snap) => {
+      isInitialCloudLoadComplete.current = true;
       if (snap.exists()) {
         const data = snap.data();
         if (Array.isArray(data?.members) && data.members.length > 0) {
+          isRemoteUpdatingRef.current = true;
           setStudentsList(data.members);
+          localStorage.setItem('smartclass_ourclass_members', JSON.stringify(data.members));
+          setCloudSyncStatus('synced');
         }
       }
     }, () => setCloudSyncStatus('offline'));
 
     const unsubNotices = onSnapshot(doc(db, 'notices', 'all_notices'), (snap) => {
+      isInitialCloudLoadComplete.current = true;
       if (snap.exists()) {
         const data = snap.data();
-        if (Array.isArray(data?.notices)) setNotices(data.notices);
+        if (Array.isArray(data?.notices)) {
+          isRemoteUpdatingRef.current = true;
+          setNotices(data.notices);
+          localStorage.setItem('smartclass_ourclass_notices', JSON.stringify(data.notices));
+          setCloudSyncStatus('synced');
+        }
       }
     }, () => setCloudSyncStatus('offline'));
 
     const unsubRoutines = onSnapshot(doc(db, 'routines', 'weekly_timetable'), (snap) => {
+      isInitialCloudLoadComplete.current = true;
       if (snap.exists()) {
         const data = snap.data();
-        if (Array.isArray(data?.routines)) setRoutines(data.routines);
+        if (Array.isArray(data?.routines)) {
+          isRemoteUpdatingRef.current = true;
+          setRoutines(data.routines);
+          localStorage.setItem('smartclass_ourclass_routines', JSON.stringify(data.routines));
+          setCloudSyncStatus('synced');
+        }
       }
     }, () => setCloudSyncStatus('offline'));
 
     const unsubTx = onSnapshot(doc(db, 'transactions', 'all_transactions'), (snap) => {
+      isInitialCloudLoadComplete.current = true;
       if (snap.exists()) {
         const data = snap.data();
-        if (Array.isArray(data?.transactions)) setFundTransactions(data.transactions);
+        if (Array.isArray(data?.transactions)) {
+          isRemoteUpdatingRef.current = true;
+          setFundTransactions(data.transactions);
+          localStorage.setItem('smartclass_ourclass_transactions', JSON.stringify(data.transactions));
+          setCloudSyncStatus('synced');
+        }
       }
     }, () => setCloudSyncStatus('offline'));
 
     const unsubDues = onSnapshot(doc(db, 'dues', 'all_dues'), (snap) => {
+      isInitialCloudLoadComplete.current = true;
       if (snap.exists()) {
         const data = snap.data();
-        if (Array.isArray(data?.dues)) setStudentDues(data.dues);
+        if (Array.isArray(data?.dues)) {
+          isRemoteUpdatingRef.current = true;
+          setStudentDues(data.dues);
+          localStorage.setItem('smartclass_ourclass_dues', JSON.stringify(data.dues));
+          setCloudSyncStatus('synced');
+        }
       }
     }, () => setCloudSyncStatus('offline'));
 
     const unsubFiles = onSnapshot(doc(db, 'files', 'all_files'), (snap) => {
+      isInitialCloudLoadComplete.current = true;
       if (snap.exists()) {
         const data = snap.data();
-        if (Array.isArray(data?.files)) setClassFiles(data.files);
+        if (Array.isArray(data?.files)) {
+          isRemoteUpdatingRef.current = true;
+          setClassFiles(data.files);
+          localStorage.setItem('smartclass_ourclass_files', JSON.stringify(data.files));
+          setCloudSyncStatus('synced');
+        }
       }
     }, () => setCloudSyncStatus('offline'));
 
     const unsubAttendance = onSnapshot(doc(db, 'attendance', 'all_records'), (snap) => {
+      isInitialCloudLoadComplete.current = true;
       if (snap.exists()) {
         const data = snap.data();
-        if (data?.history) setAttendanceHistory(data.history);
+        if (data?.history) {
+          isRemoteUpdatingRef.current = true;
+          setAttendanceHistory(data.history);
+          localStorage.setItem('smartclass_ourclass_attendance', JSON.stringify(data.history));
+          setCloudSyncStatus('synced');
+        }
       }
     }, () => setCloudSyncStatus('offline'));
 
     return () => {
+      clearTimeout(fallbackTimer);
       unsubStats();
       unsubMembers();
       unsubNotices();
@@ -415,8 +450,111 @@ export const InstitutionProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
   };
 
-  // Debounced auto-save to Firestore whenever data changes
+  const forcePushAllToFirebase = async () => {
+    await saveAllClassDataToFirebase();
+  };
+
+  // Explicitly pull all collections from Firestore
+  const forcePullAllFromFirebase = async () => {
+    setCloudSyncStatus('syncing');
+    playChime('click');
+    addNotification({
+      title: 'Pulling from Firebase...',
+      message: 'Fetching the latest data from cloud database...',
+      type: 'info'
+    });
+    try {
+      const [snapStats, snapMembers, snapNotices, snapRoutines, snapTx, snapDues, snapFiles, snapAtt] = await Promise.all([
+        getDocFromServer(doc(db, 'class_settings', 'current')).catch(() => null),
+        getDocFromServer(doc(db, 'members', 'roster_list')).catch(() => null),
+        getDocFromServer(doc(db, 'notices', 'all_notices')).catch(() => null),
+        getDocFromServer(doc(db, 'routines', 'weekly_timetable')).catch(() => null),
+        getDocFromServer(doc(db, 'transactions', 'all_transactions')).catch(() => null),
+        getDocFromServer(doc(db, 'dues', 'all_dues')).catch(() => null),
+        getDocFromServer(doc(db, 'files', 'all_files')).catch(() => null),
+        getDocFromServer(doc(db, 'attendance', 'all_records')).catch(() => null)
+      ]);
+
+      isRemoteUpdatingRef.current = true;
+      if (snapStats?.exists()) {
+        const d = snapStats.data();
+        setStats(prev => ({ ...prev, ...d }));
+        localStorage.setItem('smartclass_ourclass_stats', JSON.stringify(d));
+      }
+      if (snapMembers?.exists()) {
+        const d = snapMembers.data();
+        if (Array.isArray(d?.members)) {
+          setStudentsList(d.members);
+          localStorage.setItem('smartclass_ourclass_members', JSON.stringify(d.members));
+        }
+      }
+      if (snapNotices?.exists()) {
+        const d = snapNotices.data();
+        if (Array.isArray(d?.notices)) {
+          setNotices(d.notices);
+          localStorage.setItem('smartclass_ourclass_notices', JSON.stringify(d.notices));
+        }
+      }
+      if (snapRoutines?.exists()) {
+        const d = snapRoutines.data();
+        if (Array.isArray(d?.routines)) {
+          setRoutines(d.routines);
+          localStorage.setItem('smartclass_ourclass_routines', JSON.stringify(d.routines));
+        }
+      }
+      if (snapTx?.exists()) {
+        const d = snapTx.data();
+        if (Array.isArray(d?.transactions)) {
+          setFundTransactions(d.transactions);
+          localStorage.setItem('smartclass_ourclass_transactions', JSON.stringify(d.transactions));
+        }
+      }
+      if (snapDues?.exists()) {
+        const d = snapDues.data();
+        if (Array.isArray(d?.dues)) {
+          setStudentDues(d.dues);
+          localStorage.setItem('smartclass_ourclass_dues', JSON.stringify(d.dues));
+        }
+      }
+      if (snapFiles?.exists()) {
+        const d = snapFiles.data();
+        if (Array.isArray(d?.files)) {
+          setClassFiles(d.files);
+          localStorage.setItem('smartclass_ourclass_files', JSON.stringify(d.files));
+        }
+      }
+      if (snapAtt?.exists()) {
+        const d = snapAtt.data();
+        if (d?.history) {
+          setAttendanceHistory(d.history);
+          localStorage.setItem('smartclass_ourclass_attendance', JSON.stringify(d.history));
+        }
+      }
+
+      isInitialCloudLoadComplete.current = true;
+      setCloudSyncStatus('synced');
+      playChime('success');
+      addNotification({
+        title: 'Downloaded from Firebase!',
+        message: 'All latest data has been synchronized to this device.',
+        type: 'success'
+      });
+    } catch (err) {
+      console.error('Failed to pull from Firestore:', err);
+      setCloudSyncStatus('error');
+    }
+  };
+
+  // Debounced auto-save to Firestore whenever data changes (guarded against initial clobber & incoming echo)
   useEffect(() => {
+    if (!isInitialCloudLoadComplete.current) {
+      return;
+    }
+    if (isRemoteUpdatingRef.current) {
+      isRemoteUpdatingRef.current = false;
+      return;
+    }
+
     const timer = setTimeout(() => {
       setDoc(doc(db, 'class_settings', 'current'), { ...stats, updatedAt: new Date().toISOString() }, { merge: true }).catch(() => {});
       setDoc(doc(db, 'members', 'roster_list'), { members: studentsList, name: 'AL-USWAH Roster', updatedAt: new Date().toISOString() }, { merge: true }).catch(() => {});
@@ -426,6 +564,7 @@ export const InstitutionProvider: React.FC<{ children: React.ReactNode }> = ({ c
       setDoc(doc(db, 'dues', 'all_dues'), { dues: studentDues, title: 'Class Dues', updatedAt: new Date().toISOString() }, { merge: true }).catch(() => {});
       setDoc(doc(db, 'files', 'all_files'), { files: classFiles, name: 'Course Materials', updatedAt: new Date().toISOString() }, { merge: true }).catch(() => {});
       setDoc(doc(db, 'attendance', 'all_records'), { history: attendanceHistory, updatedAt: new Date().toISOString() }, { merge: true }).catch(() => {});
+      setCloudSyncStatus('synced');
     }, 1500);
 
     return () => clearTimeout(timer);
@@ -976,7 +1115,9 @@ export const InstitutionProvider: React.FC<{ children: React.ReactNode }> = ({ c
         resetToDefaults,
         gradeEnrollments,
         cloudSyncStatus,
-        saveAllClassDataToFirebase
+        saveAllClassDataToFirebase,
+        forcePushAllToFirebase,
+        forcePullAllFromFirebase
       }}
     >
       {children}
