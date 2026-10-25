@@ -73,15 +73,21 @@ interface ClassContextType {
   toggleUserStatus: (id: string) => void;
   toggleCashierRole: (userId: string) => void;
   updateUserPermissions: (userId: string, perms: Partial<UserPermissions>) => void;
+  promoteToSuperAdmin: (userId: string) => void;
+  demoteFromSuperAdmin: (userId: string) => void;
 
   // Attendance Taking by Date & Month
   saveAttendance: (date: string, records: Record<string, 'PRESENT' | 'ABSENT' | 'LATE'>) => void;
   getAttendanceForDate: (date: string) => Record<string, 'PRESENT' | 'ABSENT' | 'LATE'>;
 
-  // Funds, Income, Expense, Dues & Student Payments
+  // Funds, Income, Expense, Dues & Student Payments (Full CRUD & Balance Modification)
   addIncome: (title: string, amount: number, category: string, date?: string, studentId?: string, receiptNumber?: string) => void;
   addExpense: (title: string, amount: number, category: string, date?: string, receiptNumber?: string) => void;
+  updateTransaction: (id: string, updated: Partial<FundTransactionItem>) => void;
+  deleteTransaction: (id: string) => void;
   addStudentDue: (studentId: string, title: string, amount: number, dueDate: string, notes?: string) => void;
+  updateStudentDue: (id: string, updated: Partial<StudentDueRecord>) => void;
+  deleteStudentDue: (id: string) => void;
   recordStudentPayment: (dueId: string, amount: number, paymentMethod?: string, date?: string) => void;
   updateCashierBalance: (newBalance: number) => void;
 
@@ -758,6 +764,58 @@ export const InstitutionProvider: React.FC<{ children: React.ReactNode }> = ({ c
     });
   };
 
+  const promoteToSuperAdmin = (userId: string) => {
+    setStudentsList(prev =>
+      prev.map(m => {
+        if (m.id === userId) {
+          return {
+            ...m,
+            role: 'SUPER_ADMIN' as UserRole,
+            permissions: {
+              attendance: true,
+              marks: true,
+              routine: true,
+              funds: true,
+              notices: true,
+              files: true,
+              website_builder: true,
+              messaging: true,
+              roster: true
+            }
+          };
+        }
+        return m;
+      })
+    );
+    playChime('success');
+    addNotification({
+      title: 'Promoted to Super Admin',
+      message: 'Full access to all administrative tabs has been granted to this user.',
+      type: 'success'
+    });
+  };
+
+  const demoteFromSuperAdmin = (userId: string) => {
+    setStudentsList(prev =>
+      prev.map(m => {
+        if (m.id === userId) {
+          return {
+            ...m,
+            role: 'STUDENT' as UserRole,
+            permissions: {}
+          };
+        }
+        return m;
+      })
+    );
+    playChime('alert');
+    addNotification({
+      title: 'Role Updated',
+      message: 'User reverted to student account.',
+      type: 'info'
+    });
+  };
+
   // Attendance Taking
   const saveAttendance = (date: string, records: Record<string, 'PRESENT' | 'ABSENT' | 'LATE'>) => {
     setAttendanceHistory(prev => ({
@@ -939,6 +997,65 @@ export const InstitutionProvider: React.FC<{ children: React.ReactNode }> = ({ c
     });
   };
 
+  const updateTransaction = (id: string, updated: Partial<FundTransactionItem>) => {
+    setFundTransactions(prev =>
+      prev.map(t => (t.id === id ? { ...t, ...updated } : t))
+    );
+    playChime('success');
+    addNotification({
+      title: 'Transaction Updated',
+      message: 'Ledger entry and amount modified successfully.',
+      type: 'success'
+    });
+  };
+
+  const deleteTransaction = (id: string) => {
+    const toDelete = fundTransactions.find(t => t.id === id);
+    setFundTransactions(prev => prev.filter(t => t.id !== id));
+    playChime('alert');
+    addNotification({
+      title: 'Transaction Removed',
+      message: `"${toDelete?.title || 'Entry'}" has been removed from the class ledger.`,
+      type: 'warning'
+    });
+  };
+
+  const updateStudentDue = (id: string, updated: Partial<StudentDueRecord>) => {
+    setStudentDues(prev =>
+      prev.map(d => {
+        if (d.id === id) {
+          const merged = { ...d, ...updated };
+          if (merged.paidAmount >= merged.totalDue) {
+            merged.status = 'PAID';
+          } else if (merged.paidAmount > 0) {
+            merged.status = 'PARTIAL';
+          } else {
+            merged.status = 'UNPAID';
+          }
+          return merged;
+        }
+        return d;
+      })
+    );
+    playChime('success');
+    addNotification({
+      title: 'Due Record Updated',
+      message: 'Student due amount and details updated.',
+      type: 'success'
+    });
+  };
+
+  const deleteStudentDue = (id: string) => {
+    const toDelete = studentDues.find(d => d.id === id);
+    setStudentDues(prev => prev.filter(d => d.id !== id));
+    playChime('alert');
+    addNotification({
+      title: 'Due Record Deleted',
+      message: `Due "${toDelete?.title || 'Item'}" removed.`,
+      type: 'warning'
+    });
+  };
+
   // Routine
   const addRoutineSlot = (slot: Omit<ClassRoutineItem, 'id'>) => {
     const newSlot: ClassRoutineItem = {
@@ -1097,11 +1214,17 @@ export const InstitutionProvider: React.FC<{ children: React.ReactNode }> = ({ c
         toggleUserStatus,
         toggleCashierRole,
         updateUserPermissions,
+        promoteToSuperAdmin,
+        demoteFromSuperAdmin,
         saveAttendance,
         getAttendanceForDate,
         addIncome,
         addExpense,
+        updateTransaction,
+        deleteTransaction,
         addStudentDue,
+        updateStudentDue,
+        deleteStudentDue,
         recordStudentPayment,
         updateCashierBalance,
         addRoutineSlot,

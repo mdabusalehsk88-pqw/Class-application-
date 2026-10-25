@@ -31,7 +31,17 @@ import {
 } from 'lucide-react';
 
 export const AdminUserManagement: React.FC = () => {
-  const { studentsList, addUser, updateUser, deleteUser, toggleUserStatus, toggleCashierRole, updateUserPermissions } = useInstitution();
+  const {
+    studentsList,
+    addUser,
+    updateUser,
+    deleteUser,
+    toggleUserStatus,
+    toggleCashierRole,
+    updateUserPermissions,
+    promoteToSuperAdmin,
+    demoteFromSuperAdmin
+  } = useInstitution();
   const { playChime, addNotification } = useNotifications();
 
   const [search, setSearch] = useState('');
@@ -363,20 +373,41 @@ export const AdminUserManagement: React.FC = () => {
                       ? '💰 CASHIER'
                       : 'STUDENT'}
                   </span>
-                  {member.role !== 'SUPER_ADMIN' && (
-                    <button
-                      type="button"
-                      onClick={() => toggleCashierRole(member.id)}
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border transition cursor-pointer ${
-                        member.isCashier || member.role === 'CASHIER'
-                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
-                          : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
-                      }`}
-                      title="Grant or remove cashier access to add/edit/modify Class Funds"
-                    >
-                      {member.isCashier || member.role === 'CASHIER' ? '✓ Cashier Active' : '+ Grant Cashier'}
-                    </button>
-                  )}
+                  <div className="flex items-center gap-1">
+                    {member.role === 'SUPER_ADMIN' ? (
+                      <button
+                        type="button"
+                        onClick={() => demoteFromSuperAdmin(member.id)}
+                        className="text-[10px] font-bold px-2 py-0.5 rounded-lg border bg-rose-500/10 text-rose-300 border-rose-500/30 hover:bg-rose-500/20 transition cursor-pointer"
+                        title="Demote to Student"
+                      >
+                        Demote Admin
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => promoteToSuperAdmin(member.id)}
+                          className="text-[10px] font-bold px-2 py-0.5 rounded-lg border bg-rose-500/10 text-rose-300 border-rose-500/30 hover:bg-rose-600 hover:text-white transition cursor-pointer"
+                          title="Grant full Super Admin access to this user"
+                        >
+                          + Super Admin
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => toggleCashierRole(member.id)}
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border transition cursor-pointer ${
+                            member.isCashier || member.role === 'CASHIER'
+                              ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
+                              : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
+                          }`}
+                          title="Grant or remove cashier access to add/edit/modify Class Funds"
+                        >
+                          {member.isCashier || member.role === 'CASHIER' ? '✓ Cashier' : '+ Cashier'}
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -881,6 +912,19 @@ export const AdminUserManagement: React.FC = () => {
                       <div className="text-[10px] text-slate-400">Modify CMS, pages & theme</div>
                     </div>
                   </label>
+
+                  <label className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newUserPermissions.roster ?? false}
+                      onChange={e => setNewUserPermissions(prev => ({ ...prev, roster: e.target.checked }))}
+                      className="rounded accent-purple-500 cursor-pointer"
+                    />
+                    <div>
+                      <div className="font-bold text-white text-[11px]">👥 Student & User Roster</div>
+                      <div className="text-[10px] text-slate-400">Manage class member profiles & roles</div>
+                    </div>
+                  </label>
                 </div>
               </div>
 
@@ -1246,6 +1290,19 @@ export const AdminUserManagement: React.FC = () => {
                     <div>
                       <div className="font-bold text-white text-[11px]">🌐 Public Website Builder</div>
                       <div className="text-[10px] text-slate-400">Modify CMS, pages & theme</div>
+                    </div>
+                  </label>
+
+                  <label className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editPermissions.roster ?? false}
+                      onChange={e => setEditPermissions(prev => ({ ...prev, roster: e.target.checked }))}
+                      className="rounded accent-purple-500 cursor-pointer"
+                    />
+                    <div>
+                      <div className="font-bold text-white text-[11px]">👥 Student & User Roster</div>
+                      <div className="text-[10px] text-slate-400">Manage class member profiles & roles</div>
                     </div>
                   </label>
                 </div>

@@ -20,7 +20,9 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   X,
-  Filter
+  Filter,
+  Edit2,
+  Trash2
 } from 'lucide-react';
 
 export const SuperAdminFunds: React.FC = () => {
@@ -32,7 +34,11 @@ export const SuperAdminFunds: React.FC = () => {
     addIncome,
     addExpense,
     addStudentDue,
-    recordStudentPayment
+    recordStudentPayment,
+    updateTransaction,
+    deleteTransaction,
+    updateStudentDue,
+    deleteStudentDue
   } = useInstitution();
   const { playChime, addNotification } = useNotifications();
 
@@ -41,6 +47,22 @@ export const SuperAdminFunds: React.FC = () => {
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [showAddDueModal, setShowAddDueModal] = useState(false);
   const [showRecordPaymentModal, setShowRecordPaymentModal] = useState(false);
+
+  // Edit Transaction States (CRUD Modification)
+  const [editingTx, setEditingTx] = useState<any | null>(null);
+  const [editTxTitle, setEditTxTitle] = useState('');
+  const [editTxAmount, setEditTxAmount] = useState('');
+  const [editTxCategory, setEditTxCategory] = useState('Science Project');
+  const [editTxDate, setEditTxDate] = useState('');
+  const [editTxReceipt, setEditTxReceipt] = useState('');
+
+  // Edit Student Due States (CRUD Modification)
+  const [editingDue, setEditingDue] = useState<any | null>(null);
+  const [editDueTitle, setEditDueTitle] = useState('');
+  const [editDueTotal, setEditDueTotal] = useState('');
+  const [editDuePaid, setEditDuePaid] = useState('');
+  const [editDueDate, setEditDueDate] = useState('');
+  const [editDueNotes, setEditDueNotes] = useState('');
 
   // Income / Expense Form States
   const [txTitle, setTxTitle] = useState('');
@@ -165,6 +187,80 @@ export const SuperAdminFunds: React.FC = () => {
     setShowRecordPaymentModal(false);
     setSelectedDueId('');
     setPayAmount('');
+  };
+
+  // Open Edit Transaction
+  const openEditTxModal = (tx: any) => {
+    setEditingTx(tx);
+    setEditTxTitle(tx.title);
+    setEditTxAmount(tx.amount.toString());
+    setEditTxCategory(tx.category || 'Science Project');
+    setEditTxDate(tx.date || new Date().toISOString().split('T')[0]);
+    setEditTxReceipt(tx.receiptNumber || '');
+    playChime('click');
+  };
+
+  // Save Edited Transaction
+  const handleSaveEditTx = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTx) return;
+    const numAmount = Number(editTxAmount);
+    if (!editTxTitle.trim() || isNaN(numAmount) || numAmount <= 0) {
+      addNotification({
+        title: 'Invalid Input',
+        message: 'Please provide a valid title and positive amount.',
+        type: 'warning'
+      });
+      return;
+    }
+    updateTransaction(editingTx.id, {
+      title: editTxTitle.trim(),
+      amount: numAmount,
+      category: editTxCategory,
+      date: editTxDate,
+      receiptNumber: editTxReceipt.trim()
+    });
+    setEditingTx(null);
+  };
+
+  // Open Edit Due
+  const openEditDueModal = (due: any) => {
+    setEditingDue(due);
+    setEditDueTitle(due.title);
+    setEditDueTotal(due.totalDue.toString());
+    setEditDuePaid(due.paidAmount.toString());
+    setEditDueDate(due.dueDate || new Date().toISOString().split('T')[0]);
+    setEditDueNotes(due.notes || '');
+    playChime('click');
+  };
+
+  // Save Edited Due
+  const handleSaveEditDue = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingDue) return;
+    const total = Number(editDueTotal);
+    const paid = Number(editDuePaid);
+    if (!editDueTitle.trim() || isNaN(total) || total <= 0) {
+      addNotification({
+        title: 'Invalid Input',
+        message: 'Please provide a valid due title and amount.',
+        type: 'warning'
+      });
+      return;
+    }
+    const safePaid = isNaN(paid) ? 0 : Math.max(0, Math.min(paid, total));
+    const status: 'PAID' | 'PARTIAL' | 'UNPAID' =
+      safePaid >= total ? 'PAID' : safePaid > 0 ? 'PARTIAL' : 'UNPAID';
+
+    updateStudentDue(editingDue.id, {
+      title: editDueTitle.trim(),
+      totalDue: total,
+      paidAmount: safePaid,
+      dueDate: editDueDate,
+      notes: editDueNotes.trim(),
+      status
+    });
+    setEditingDue(null);
   };
 
   // Filtered Dues
@@ -447,6 +543,7 @@ export const SuperAdminFunds: React.FC = () => {
                     <th className="p-4">Date</th>
                     <th className="p-4">Receipt / Voucher #</th>
                     <th className="p-4 text-right">Amount</th>
+                    <th className="p-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">
@@ -481,6 +578,24 @@ export const SuperAdminFunds: React.FC = () => {
                         <span className={tx.type === 'INCOME' ? 'text-emerald-400' : 'text-rose-400'}>
                           {tx.type === 'INCOME' ? '+' : '-'}${tx.amount.toLocaleString()}
                         </span>
+                      </td>
+                      <td className="p-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => openEditTxModal(tx)}
+                            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg transition border border-slate-700 cursor-pointer"
+                            title="Edit transaction details or amount"
+                          >
+                            <Edit2 size={13} />
+                          </button>
+                          <button
+                            onClick={() => deleteTransaction(tx.id)}
+                            className="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-lg transition border border-rose-500/20 cursor-pointer"
+                            title="Remove / Delete this transaction"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -546,23 +661,39 @@ export const SuperAdminFunds: React.FC = () => {
                         <td className="p-4 font-mono font-bold text-white">${due.totalDue}</td>
                         <td className="p-4 font-mono font-bold text-emerald-400">${due.paidAmount}</td>
                         <td className="p-4 text-right">
-                          {due.status !== 'PAID' ? (
+                          <div className="flex items-center justify-end gap-1.5">
+                            {due.status !== 'PAID' ? (
+                              <button
+                                onClick={() => {
+                                  setSelectedDueId(due.id);
+                                  setPayAmount(remaining.toString());
+                                  setShowRecordPaymentModal(true);
+                                  playChime('click');
+                                }}
+                                className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition shadow cursor-pointer"
+                              >
+                                Pay ${remaining}
+                              </button>
+                            ) : (
+                              <span className="text-[11px] text-emerald-400 font-bold flex items-center justify-end gap-1">
+                                <CheckCircle2 size={13} /> Paid Full
+                              </span>
+                            )}
                             <button
-                              onClick={() => {
-                                setSelectedDueId(due.id);
-                                setPayAmount(remaining.toString());
-                                setShowRecordPaymentModal(true);
-                                playChime('click');
-                              }}
-                              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition shadow cursor-pointer"
+                              onClick={() => openEditDueModal(due)}
+                              className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg transition border border-slate-700 cursor-pointer"
+                              title="Edit due amount or notes"
                             >
-                              Pay ${remaining}
+                              <Edit2 size={13} />
                             </button>
-                          ) : (
-                            <span className="text-[11px] text-emerald-400 font-bold flex items-center justify-end gap-1">
-                              <CheckCircle2 size={13} /> Paid Full
-                            </span>
-                          )}
+                            <button
+                              onClick={() => deleteStudentDue(due.id)}
+                              className="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-lg transition border border-rose-500/20 cursor-pointer"
+                              title="Remove / Delete student due"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -1000,6 +1131,207 @@ export const SuperAdminFunds: React.FC = () => {
                   className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-600/30"
                 >
                   Save Payment & Deposit
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ===================== MODAL: EDIT TRANSACTION ===================== */}
+      {editingTx && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className={`p-2 rounded-xl ${editingTx.type === 'INCOME' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
+                  <Edit2 size={18} />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-white">Edit {editingTx.type === 'INCOME' ? 'Income' : 'Expense'} Transaction</h3>
+                  <p className="text-xs text-slate-400">Modify amount, category, or title</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditingTx(null)}
+                className="p-1.5 text-slate-400 hover:text-white"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditTx} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">Title / Description</label>
+                <input
+                  type="text"
+                  required
+                  value={editTxTitle}
+                  onChange={e => setEditTxTitle(e.target.value)}
+                  className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">Amount ($)</label>
+                  <input
+                    type="number"
+                    required
+                    min="1"
+                    value={editTxAmount}
+                    onChange={e => setEditTxAmount(e.target.value)}
+                    className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">Category</label>
+                  <input
+                    type="text"
+                    required
+                    value={editTxCategory}
+                    onChange={e => setEditTxCategory(e.target.value)}
+                    className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">Transaction Date</label>
+                  <input
+                    type="date"
+                    required
+                    value={editTxDate}
+                    onChange={e => setEditTxDate(e.target.value)}
+                    className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">Receipt / Voucher #</label>
+                  <input
+                    type="text"
+                    value={editTxReceipt}
+                    onChange={e => setEditTxReceipt(e.target.value)}
+                    placeholder="e.g. REC-8492"
+                    className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setEditingTx(null)}
+                  className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-700 transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-600/30 transition cursor-pointer"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ===================== MODAL: EDIT STUDENT DUE ===================== */}
+      {editingDue && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400">
+                  <Edit2 size={18} />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-white">Edit Student Due</h3>
+                  <p className="text-xs text-slate-400">{editingDue.studentName} ({editingDue.admissionNumber})</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditingDue(null)}
+                className="p-1.5 text-slate-400 hover:text-white"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditDue} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">Fee / Due Item Title</label>
+                <input
+                  type="text"
+                  required
+                  value={editDueTitle}
+                  onChange={e => setEditDueTitle(e.target.value)}
+                  className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">Total Due ($)</label>
+                  <input
+                    type="number"
+                    required
+                    min="1"
+                    value={editDueTotal}
+                    onChange={e => setEditDueTotal(e.target.value)}
+                    className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">Amount Paid ($)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editDuePaid}
+                    onChange={e => setEditDuePaid(e.target.value)}
+                    className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">Due Date</label>
+                <input
+                  type="date"
+                  required
+                  value={editDueDate}
+                  onChange={e => setEditDueDate(e.target.value)}
+                  className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">Notes / Remarks</label>
+                <input
+                  type="text"
+                  value={editDueNotes}
+                  onChange={e => setEditDueNotes(e.target.value)}
+                  placeholder="Optional note"
+                  className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setEditingDue(null)}
+                  className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-700 transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold shadow-md shadow-amber-600/30 transition cursor-pointer"
+                >
+                  Save Changes
                 </button>
               </div>
             </form>

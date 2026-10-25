@@ -18,6 +18,7 @@ export interface UserPermissions {
   files?: boolean;
   website_builder?: boolean;
   messaging?: boolean;
+  roster?: boolean; // Manage members and permission delegations
 }
 
 export type Language = 'bn' | 'en' | 'hi';

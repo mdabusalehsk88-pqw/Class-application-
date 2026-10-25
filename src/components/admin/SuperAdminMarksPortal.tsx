@@ -71,6 +71,8 @@ const defaultSubjects = [
 ];
 
 const defaultExamTerms = [
+  'Half Yearly Examination',
+  'Annual Examination',
   'SEC. FOURTH YEAR HALF YEARLY EXAMINATION - AUG-2026',
   'First Term Examination 2026',
   'Midterm Examination 2026',

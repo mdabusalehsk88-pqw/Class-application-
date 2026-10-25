@@ -30,7 +30,7 @@ import {
   GraduationCap
 } from 'lucide-react';
 
-type StudentMessageTab = 'BROADCAST' | 'DIRECT_ADMIN' | 'GROUPS';
+type StudentMessageTab = 'BROADCAST' | 'DIRECT_ADMIN';
 
 interface QuickInquiry {
   label: string;
@@ -103,7 +103,7 @@ export const StudentMessagingSystem: React.FC = () => {
       photo: currentUser.avatar
     };
 
-  // Dedicated channels for student
+  // Dedicated clean channels for student - extra dummy groups removed
   const studentChannels = [
     {
       id: 'all_students',
@@ -134,20 +134,7 @@ export const StudentMessagingSystem: React.FC = () => {
       avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
       icon: GraduationCap,
       color: '#a855f7'
-    },
-    // Only groups created by the Admin for students
-    ...conversations
-      .filter(c => c.type === 'GROUP')
-      .map(g => ({
-        id: g.id,
-        tab: 'GROUPS' as StudentMessageTab,
-        name: g.name,
-        description: g.description || 'Admin created student group',
-        badge: 'Admin Group',
-        avatar: g.avatar || 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=150&auto=format&fit=crop&q=80',
-        icon: Users,
-        color: g.color || '#6366f1'
-      }))
+    }
   ];
 
   const [activeChannelId, setActiveChannelId] = useState<string>('all_students');
@@ -274,22 +261,6 @@ export const StudentMessagingSystem: React.FC = () => {
             <Shield size={13} />
             <span>Officer Direct</span>
           </button>
-
-          <button
-            onClick={() => {
-              setActiveTab('GROUPS');
-              setActiveChannelId('grp_stem_robotics');
-              playChime('click');
-            }}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
-              activeTab === 'GROUPS'
-                ? 'bg-emerald-600 text-white shadow'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Users size={13} />
-            <span>Study Teams</span>
-          </button>
         </div>
       </div>
 
@@ -303,23 +274,14 @@ export const StudentMessagingSystem: React.FC = () => {
                 Active Channels
               </span>
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">
-                5 Online
+                Verified
               </span>
             </div>
 
             {/* Channel List */}
             <div className="space-y-2 overflow-y-auto flex-1 pr-1">
-              {activeTab === 'GROUPS' && studentChannels.filter(c => c.tab === 'GROUPS').length === 0 && (
-                <div className="p-4 rounded-2xl bg-slate-950/70 border border-dashed border-slate-800 text-center space-y-1.5 my-2">
-                  <Users size={20} className="mx-auto text-slate-500" />
-                  <div className="text-xs font-bold text-slate-300">No Student Groups Yet</div>
-                  <p className="text-[11px] text-slate-500 leading-tight">
-                    Only groups created by the Admin for students will appear here.
-                  </p>
-                </div>
-              )}
               {studentChannels
-                .filter(c => activeTab === 'BROADCAST' || c.tab === activeTab || c.tab === 'BROADCAST')
+                .filter(c => c.tab === activeTab)
                 .map(channel => {
                   const isSelected = activeChannelId === channel.id;
                   const Icon = channel.icon;

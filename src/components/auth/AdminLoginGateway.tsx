@@ -61,6 +61,40 @@ export const AdminLoginGateway: React.FC<AdminLoginGatewayProps> = ({
       const trimmedUser = studentUsername.trim().toLowerCase();
       const trimmedPass = studentPassword.trim();
 
+      // Check for user-customized admin credentials in localStorage
+      let customAdminMatch = false;
+      try {
+        const stored = localStorage.getItem('smartclass_admin_custom_credentials');
+        if (stored) {
+          const creds = JSON.parse(stored);
+          const customU = creds.username?.trim().toLowerCase();
+          const customE = creds.email?.trim().toLowerCase();
+          const customP = creds.password?.trim();
+          if ((trimmedUser === customU || trimmedUser === customE) && trimmedPass === customP) {
+            customAdminMatch = true;
+          }
+        }
+      } catch {
+        // ignore
+      }
+
+      // Check default super admin credentials
+      const defaultAdminMatch =
+        (trimmedUser === 'superadminabu@smartclass.pro' || trimmedUser === 'admin' || trimmedUser === 'superadmin') &&
+        (trimmedPass === 'superadminabuforsmartclass.pro' || trimmedPass === 'admin');
+
+      if (customAdminMatch || defaultAdminMatch) {
+        playChime('success');
+        addNotification({
+          title: 'Super Admin Authenticated',
+          message: 'Welcome back! Full administrative control and CMS active.',
+          type: 'success'
+        });
+        login('SUPER_ADMIN');
+        return;
+      }
+
+      // Check students list
       const matchedStudent = studentsList.find(s => {
         const u = s.username?.toLowerCase() || s.name.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 10);
         const adm = s.admissionNumber?.toLowerCase();
@@ -73,6 +107,18 @@ export const AdminLoginGateway: React.FC<AdminLoginGatewayProps> = ({
       });
 
       if (matchedStudent) {
+        // If this student has been promoted to Super Admin, log them in as Super Admin!
+        if (matchedStudent.role === 'SUPER_ADMIN') {
+          playChime('success');
+          addNotification({
+            title: 'Super Admin Authenticated',
+            message: `Welcome back, ${matchedStudent.name}! Super Admin portal active.`,
+            type: 'success'
+          });
+          login('SUPER_ADMIN');
+          return;
+        }
+
         playChime('success');
         addNotification({
           title: 'Student Authenticated',
@@ -88,7 +134,7 @@ export const AdminLoginGateway: React.FC<AdminLoginGatewayProps> = ({
     }, 350);
   };
 
-  // Handle Admin Login (supports both custom changed credentials and defaults)
+  // Handle Admin Login (supports custom credentials, defaults, and promoted Super Admins)
   const handleAdminLogin = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setIsLoading(true);
@@ -119,11 +165,21 @@ export const AdminLoginGateway: React.FC<AdminLoginGatewayProps> = ({
         (u === 'superadminabu@smartclass.pro' || u === 'admin' || u === 'superadmin') &&
         (p === 'superadminabuforsmartclass.pro' || p === 'admin');
 
-      if (customMatch || defaultMatch) {
+      // Check if any member on the roster is a SUPER_ADMIN with these credentials
+      const matchedSuperAdminStudent = studentsList.find(s => {
+        if (s.role !== 'SUPER_ADMIN') return false;
+        const su = s.username?.toLowerCase() || s.name.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 10);
+        const sem = s.email?.toLowerCase();
+        const sadm = s.admissionNumber?.toLowerCase();
+        const sp = s.password || 'superadminabuforsmartclass.pro';
+        return (u === su || u === sem || u === sadm) && p === sp;
+      });
+
+      if (customMatch || defaultMatch || matchedSuperAdminStudent) {
         playChime('success');
         addNotification({
           title: 'Super Admin Authenticated',
-          message: 'Welcome back! Full administrative control and Website Builder CMS are active.',
+          message: `Welcome back${matchedSuperAdminStudent ? ', ' + matchedSuperAdminStudent.name : ''}! Administrative control and Website Builder active.`,
           type: 'success'
         });
         login('SUPER_ADMIN');
@@ -160,6 +216,42 @@ export const AdminLoginGateway: React.FC<AdminLoginGatewayProps> = ({
             </button>
           </div>
         )}
+
+        {/* Portal Mode Switcher */}
+        <div className="grid grid-cols-2 p-1 bg-slate-900/90 border border-slate-800 rounded-2xl">
+          <button
+            type="button"
+            onClick={() => {
+              setGatewayMode('student');
+              setErrorMsg('');
+              playChime('click');
+            }}
+            className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+              gatewayMode === 'student'
+                ? 'bg-indigo-600 text-white shadow-md'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <GraduationCap size={15} />
+            <span>Student Portal</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setGatewayMode('admin');
+              setErrorMsg('');
+              playChime('click');
+            }}
+            className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+              gatewayMode === 'admin'
+                ? 'bg-rose-600 text-white shadow-md'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <ShieldCheck size={15} />
+            <span>Super Admin</span>
+          </button>
+        </div>
 
         {/* ============================================================== */}
         {/* STUDENT LOGIN VIEW (DEFAULT AS REQUESTED)                     */}

@@ -314,7 +314,7 @@ export const StudentPersonalPortal: React.FC = () => {
     );
   }, [gradeCards, currentStudent]);
 
-  const [selectedExamTerm, setSelectedExamTerm] = useState<string>('First Term Examination 2026');
+  const [selectedExamTerm, setSelectedExamTerm] = useState<string>('Half Yearly Examination');
 
   // Extract marks for THIS student across all subjects for selected exam term
   const mySubjectMarks = useMemo(() => {
@@ -328,7 +328,14 @@ export const StudentPersonalPortal: React.FC = () => {
     }[] = [];
 
     allStoredMarksheets.forEach(sheet => {
-      if (sheet.examTerm === selectedExamTerm) {
+      const isMatch =
+        sheet.examTerm === selectedExamTerm ||
+        (selectedExamTerm === 'Half Yearly Examination' &&
+          (sheet.examTerm?.includes('Half') || sheet.examTerm?.includes('First') || sheet.examTerm?.includes('Midterm'))) ||
+        (selectedExamTerm === 'Annual Examination' &&
+          (sheet.examTerm?.includes('Annual') || sheet.examTerm?.includes('Final')));
+
+      if (isMatch) {
         // Find this student's row
         const entry = sheet.entries.find(
           e =>
@@ -1627,9 +1634,8 @@ export const StudentPersonalPortal: React.FC = () => {
                   onChange={e => setSelectedExamTerm(e.target.value)}
                   className="px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-400 cursor-pointer font-bold"
                 >
-                  <option value="First Term Examination 2026">First Term Examination 2026</option>
-                  <option value="Midterm Examination 2026">Midterm Examination 2026</option>
-                  <option value="Final Term Examination 2026">Final Term Examination 2026</option>
+                  <option value="Half Yearly Examination">Half Yearly Examination</option>
+                  <option value="Annual Examination">Annual Examination</option>
                 </select>
 
                 <button

@@ -192,6 +192,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const loginStudent = (student: ManagedClassMember) => {
+    // If the student has been granted Super Admin role, authenticate directly as SUPER_ADMIN
+    if (student.role === 'SUPER_ADMIN') {
+      login('SUPER_ADMIN');
+      return;
+    }
+
     const studentProfile: UserProfile = {
       id: student.id,
       name: student.name,

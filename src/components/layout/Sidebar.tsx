@@ -100,6 +100,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       if (item.id === 'notices' && perms.notices) return true;
       if (item.id === 'materials' && perms.files) return true;
       if (item.id === 'website_builder' && perms.website_builder) return true;
+      if (item.id === 'admin_users' && perms.roster) return true;
       return false;
     }
     return true;
