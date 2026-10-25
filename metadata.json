@@ -1,0 +1,6 @@
+{
+  "name": "SmartClass Pro",
+  "description": "Next-Generation Smart Class Management & EdTech Platform featuring AL-USWAH Student Portal, Super Admin Console, Real-Time Messaging, Attendance, and University Examination Grade Cards.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
