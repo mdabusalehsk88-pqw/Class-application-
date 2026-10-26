@@ -80,8 +80,8 @@ export const AdminLoginGateway: React.FC<AdminLoginGatewayProps> = ({
 
       // Check default super admin credentials
       const defaultAdminMatch =
-        (trimmedUser === 'superadminabu@smartclass.pro' || trimmedUser === 'admin' || trimmedUser === 'superadmin') &&
-        (trimmedPass === 'superadminabuforsmartclass.pro' || trimmedPass === 'admin');
+        (trimmedUser === 'adminuswah' || trimmedUser === 'adminuswah' || trimmedUser === 'adminuswah') &&
+        (trimmedPass === 'superadminuswah' || trimmedPass === 'superadminuswah');
 
       if (customAdminMatch || defaultAdminMatch) {
         playChime('success');
@@ -162,8 +162,8 @@ export const AdminLoginGateway: React.FC<AdminLoginGatewayProps> = ({
       }
 
       const defaultMatch =
-        (u === 'superadminabu@smartclass.pro' || u === 'admin' || u === 'superadmin') &&
-        (p === 'superadminabuforsmartclass.pro' || p === 'admin');
+        (u === 'adminuswah' || u === 'adminuswah' || u === 'adminuswah') &&
+        (p === 'superadminuswah' || p === 'superadminuswah');
 
       // Check if any member on the roster is a SUPER_ADMIN with these credentials
       const matchedSuperAdminStudent = studentsList.find(s => {

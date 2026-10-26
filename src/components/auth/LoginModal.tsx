@@ -45,8 +45,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       const u = username.trim().toLowerCase();
       const p = password.trim();
       if (
-        (u === 'adminuswah' || u === 'admin' || u === 'superadmin') &&
-        (p === 'superadminuswah' || p === 'admin')
+        (u === 'adminuswah' || u === 'adminuswah' || u === 'adminuswah') &&
+        (p === 'superadminuswah' || p === 'superadminuswah')
       ) {
         login('SUPER_ADMIN');
         setIsLoading(false);
